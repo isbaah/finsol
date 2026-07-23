@@ -1,0 +1,13 @@
+# Runtime dependencies for Stage 1 (Project Foundation).
+# Additional dependencies (django-allauth, httpx, WeasyPrint, Pillow, etc.) are added
+# in the stage that first uses them — see docs/BUILD_PROGRESS.md for the phasing rationale.
+Django==5.2.16
+djangorestframework==3.17.1
+django-cors-headers==4.9.0
+django-filter==26.1
+drf-spectacular==0.30.0
+psycopg[binary]==3.3.4
+dj-database-url==3.1.2
+python-dateutil==2.9.0.post0
+phonenumbers==9.0.34
+gunicorn==26.0.0

@@ -1,4 +1,13 @@
-.PHONY: setup dev stop logs migrate makemigrations seed test test-backend test-frontend lint format typecheck build sms-dry-run reconcile
+.PHONY: setup dev stop logs migrate makemigrations seed test test-backend test-frontend lint format typecheck build sms-dry-run reconcile createsuperuser
+
+# ── Local dev credentials (override on the CLI: make createsuperuser ADMIN_PASS=…) ──
+# No ADMIN_USER: the custom User model (apps/accounts/models.py) has no
+# username field at all — email is the sole identifier (USERNAME_FIELD).
+ADMIN_EMAIL ?= admin@flexibuygh.com
+ADMIN_PASS  ?= admin1234
+
+# ── Base compose command (auto-loads docker-compose.override.yml locally) ──────
+DC = docker compose
 
 setup:
 	cp -n .env.example .env || true
@@ -20,7 +29,7 @@ makemigrations:
 	docker compose exec backend python manage.py makemigrations
 
 seed:
-	@echo "No seed data required yet — role seeding (seed_roles) arrives in Stage 3."
+	docker compose exec backend python manage.py seed_roles
 
 test: test-backend test-frontend
 
@@ -46,7 +55,13 @@ build:
 	docker compose exec frontend npm run build
 
 sms-dry-run:
-	@echo "process_due_sms is not implemented yet — arrives in Stage 11."
+	docker compose exec backend python manage.py process_due_sms --dry-run
 
 reconcile:
-	@echo "Reconciliation reporting command is not implemented yet — arrives in Stage 10."
+	docker compose exec backend python manage.py reconcile
+
+createsuperuser:
+	$(DC) exec \
+		-e DJANGO_SUPERUSER_EMAIL=$(ADMIN_EMAIL) \
+		-e DJANGO_SUPERUSER_PASSWORD=$(ADMIN_PASS) \
+		backend python manage.py create_super_admin --noinput

@@ -1731,7 +1731,6 @@ Create secure user profiles and business roles.
 - Create reusable DRF role and ownership permission classes.
 - Add admin user/role management for super administrators or controlled Django admin support.
 - Add masked serializers for payout details.
-- Implement authorised reveal endpoint only if necessary, with audit logging.
 - Build profile pages and validation.
 
 ### Tests

@@ -1,6 +1,6 @@
-# Runtime dependencies for Stage 1 (Project Foundation).
-# Additional dependencies (django-allauth, httpx, WeasyPrint, Pillow, etc.) are added
-# in the stage that first uses them — see docs/BUILD_PROGRESS.md for the phasing rationale.
+# Runtime dependencies.
+# Additional dependencies (httpx, WeasyPrint, Pillow, etc.) are added in the
+# stage that first uses them — see docs/BUILD_PROGRESS.md for the phasing rationale.
 Django==5.2.16
 djangorestframework==3.17.1
 django-cors-headers==4.9.0
@@ -11,3 +11,11 @@ dj-database-url==3.1.2
 python-dateutil==2.9.0.post0
 phonenumbers==9.0.34
 gunicorn==26.0.0
+
+# Stage 2: authentication (headless browser flows + Google OAuth)
+django-allauth[headless]==65.18.0
+requests==2.34.2
+
+# Stage 8: agreement PDF generation and signature image validation
+weasyprint==66.0
+pillow==11.3.0

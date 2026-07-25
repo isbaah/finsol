@@ -10,8 +10,8 @@ mobile-money transfer) and are only **recorded** here by staff.
 
 ## Project status
 
-Building stage-by-stage per `docs/BUILD_PROGRESS.md`. Currently: **Stage 1 — Project Foundation
-and Local Development**.
+Building stage-by-stage per `docs/BUILD_PROGRESS.md`. Currently: **Stage 7 — Admin Review and
+Versioned Loan Offers** (Stage 6, Customer Loan Request Workflow, is also complete).
 
 ## Prerequisites
 
@@ -19,6 +19,9 @@ and Local Development**.
   the stack locally. The backend runs Python 3.13 and the frontend runs Node.js 24 **inside their
   containers**, so you do not need either installed on your host.
 - Git.
+- `make` (optional). If it isn't available on your machine (e.g. plain Windows without WSL/Git
+  Bash `make`), run the `docker compose ...` command inside each Makefile target directly — every
+  target is a thin one-line wrapper, see `Makefile`.
 
 ## Setup
 
@@ -49,11 +52,63 @@ Stop the stack with `make stop`. Tail logs with `make logs`.
 
 Rebuild images after dependency changes with `docker compose build` (or `make setup`).
 
-## Authentication setup (Stage 2)
+## Authentication setup
 
-Email/password + Google sign-in via `django-allauth[headless]`. Not yet wired up — see
-`docs/BUILD_PROGRESS.md` for the stage plan. Google OAuth client ID/secret will be read from
-`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — never hard-coded.
+Email/password + Google sign-in via `django-allauth[headless]`, session-cookie based (no auth
+token is ever stored in `localStorage`). Email is the sole login identifier; verification is
+mandatory before a session becomes fully authenticated.
+
+- Frontend auth pages: `/auth/login`, `/auth/signup`, `/auth/verify-email`,
+  `/auth/forgot-password`, `/auth/reset-password`, `/auth/google/callback`.
+- Backend JSON API: `/_allauth/browser/v1/...` (allauth headless) and `/accounts/...` (Google's
+  OAuth redirect/callback machinery only — no server-rendered account pages, since the project runs
+  `HEADLESS_ONLY = True`).
+- In local dev, verification/reset emails print to the `backend` container's logs (console email
+  backend) — run `docker compose logs backend` after signing up and look for the
+  `/auth/verify-email?key=...` link.
+
+### Google OAuth setup
+
+1. Create an OAuth 2.0 Client ID in Google Cloud Console (type: Web application).
+2. Authorised redirect URI: `<API_BASE_URL>/accounts/google/login/callback/` (e.g.
+   `http://localhost:8000/accounts/google/login/callback/` for local dev).
+3. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env` — never hard-coded, and `.env` is
+   gitignored.
+4. No restart-time validation is required for these two values (unlike `DJANGO_SECRET_KEY` etc. in
+   production) — the sign-in button works as soon as they're set and the backend container is
+   restarted to pick up the new `.env` values (`docker compose restart backend` or `make dev`).
+
+## Customer profiles and roles
+
+New customers complete their profile (phone number + payout details) at `/onboarding/profile`
+before they can do anything else in the app; `GET /api/v1/me/` reports `profile_completed` so the
+frontend knows when to redirect there. Payout account numbers are always masked outside the
+profile owner's own view — see `docs/BUILD_PROGRESS.md`'s Stage 3 notes for why there is currently
+no way to see them unmasked anywhere else (the authorised staff reveal workflow arrives in Stage 9).
+
+Internal staff roles (`LOAN_OFFICER`, `APPROVER`, `FINANCE_OFFICER`, `AUDITOR`, `SUPER_ADMIN`) are
+Django Groups, seeded idempotently:
+
+```bash
+make seed   # runs manage.py seed_roles
+```
+
+Assign a user to a role via Django admin (`/admin/accounts/user/<id>/change/` → Permissions →
+Groups) — there is no dedicated frontend role-management screen yet. Business roles are
+deliberately independent of Django's `is_staff`/`is_superuser` flags, which only gate the
+technical Django admin site.
+
+To create your first admin account with both Django admin access **and** the `SUPER_ADMIN`
+business role in one step:
+
+```bash
+make createsuperuser   # prompts interactively, or override ADMIN_EMAIL/ADMIN_PASS on the CLI
+```
+
+Plain `python manage.py createsuperuser` only grants Django's technical `is_superuser`/`is_staff`
+flags — it does **not** add the user to `SUPER_ADMIN`, so it alone can't call any
+`has_any_role(*STAFF_ROLES)`-gated business endpoint. `make createsuperuser` runs
+`manage.py create_super_admin`, which does both.
 
 ## Hubtel setup (Stage 11)
 
@@ -95,10 +150,10 @@ make migrate       # apply Django migrations
 make makemigrations
 ```
 
-`make seed`, `make sms-dry-run`, and `make reconcile` are defined but not yet backed by real
-management commands — they print a note pointing at the stage that implements them (Stage 3,
-Stage 11, and Stage 10 respectively), so the documented command surface exists from day one without
-pretending unbuilt functionality works.
+`make seed` now runs `seed_roles` (see "Customer profiles and roles" above). `make sms-dry-run` and
+`make reconcile` are still defined but not yet backed by real management commands — they print a
+note pointing at the stage that implements them (Stage 11 and Stage 10 respectively), so the
+documented command surface exists from day one without pretending unbuilt functionality works.
 
 ## Production notes
 

@@ -33,3 +33,9 @@ SECURE_HSTS_PRELOAD = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
 AGREEMENT_ACTION_EMAIL = require_env("AGREEMENT_ACTION_EMAIL")
+
+# Verification and password-reset emails are on the critical path for
+# authentication — fail startup rather than silently discard mail via an
+# unconfigured SMTP backend.
+if EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend":  # noqa: F405
+    require_env("EMAIL_HOST")

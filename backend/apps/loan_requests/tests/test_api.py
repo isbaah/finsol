@@ -272,9 +272,7 @@ class TestAdminQueue:
         response = client.get(ADMIN_LIST_URL)
 
         results = response.json()["results"]
-        row = next(
-            r for r in results if r["request_number"] == loan_request.request_number
-        )
+        row = next(r for r in results if r["request_number"] == loan_request.request_number)
         assert row["requested_term_count"] == 9
         assert row["requested_term_unit"] == "MONTH"
 

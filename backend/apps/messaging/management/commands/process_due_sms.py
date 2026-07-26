@@ -29,7 +29,7 @@ from django.utils.dateparse import parse_datetime
 import apps.messaging.services as messaging_services
 from apps.loans import services as loan_services
 from apps.loans.models import Loan, RepaymentInstallment
-from apps.messaging.models import SMSMessage
+from apps.messaging.models import SMSMessage, SMSSettings
 
 _ADVISORY_LOCK_KEY = 741852963
 
@@ -52,11 +52,6 @@ def _try_acquire_lock() -> bool:
 def _release_lock() -> None:
     with db_connection.cursor() as cursor:
         cursor.execute("SELECT pg_advisory_unlock(%s)", [_ADVISORY_LOCK_KEY])
-
-
-def _parse_hhmm(value: str) -> tuple[int, int]:
-    hour, _, minute = value.partition(":")
-    return int(hour), int(minute or 0)
 
 
 class Command(BaseCommand):
@@ -111,8 +106,15 @@ class Command(BaseCommand):
         local_now = timezone.localtime(now)
         today = local_now.date()
         current_time = local_now.time()
-        morning_time = _parse_hhmm(settings.SMS_DUE_MORNING_TIME)
-        afternoon_time = _parse_hhmm(settings.SMS_DUE_AFTERNOON_TIME)
+        sms_settings = SMSSettings.get_solo()
+        morning_time = (
+            sms_settings.morning_reminder_time.hour,
+            sms_settings.morning_reminder_time.minute,
+        )
+        afternoon_time = (
+            sms_settings.afternoon_reminder_time.hour,
+            sms_settings.afternoon_reminder_time.minute,
+        )
         reached_morning = (current_time.hour, current_time.minute) >= morning_time
         reached_afternoon = (current_time.hour, current_time.minute) >= afternoon_time
 

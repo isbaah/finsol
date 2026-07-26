@@ -83,6 +83,16 @@ export default function AdminLoanRequestDetailPage({
             <span className="text-muted-foreground text-sm">Purpose</span>
             <span className="text-foreground text-sm font-medium">{loanRequest.purpose}</span>
           </div>
+          {loanRequest.requested_term_count && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground text-sm">Preferred term</span>
+              <span className="text-foreground text-sm font-medium">
+                {loanRequest.requested_term_count}{" "}
+                {loanRequest.requested_term_unit.toLowerCase()}
+                {loanRequest.requested_term_count > 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-muted-foreground text-sm">Submitted</span>
             <span className="text-foreground text-sm font-medium">

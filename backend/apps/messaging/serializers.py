@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.messaging.models import SMSMessage
+from apps.messaging.models import SMSMessage, SMSSettings
 
 
 class SMSMessageSerializer(serializers.ModelSerializer):
@@ -33,3 +33,15 @@ class SMSMessageSerializer(serializers.ModelSerializer):
 
 class ManualReminderSerializer(serializers.Serializer):
     reason = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class SMSSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SMSSettings
+        fields = [
+            "hubtel_enabled",
+            "morning_reminder_time",
+            "afternoon_reminder_time",
+            "updated_at",
+        ]
+        read_only_fields = ["updated_at"]

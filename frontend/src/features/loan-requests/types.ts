@@ -67,6 +67,8 @@ export interface AdminLoanRequestListItem {
   customer_name: string;
   requested_amount: string;
   purpose: string;
+  requested_term_count: number | null;
+  requested_term_unit: TermUnit | "";
   status: LoanRequestStatus;
   submitted_at: string | null;
   assigned_to_name: string;

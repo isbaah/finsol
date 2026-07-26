@@ -5,6 +5,7 @@ from io import BytesIO
 
 import pytest
 from django.core import mail
+from django.test import override_settings
 from PIL import Image
 
 from apps.agreements.models import Agreement
@@ -102,6 +103,29 @@ class TestOfferAcceptance:
         assert Loan.objects.filter(loan_request=loan_request).exists()
         assert len(mail.outbox) == 1
         assert mail.outbox[0].attachments
+
+    @override_settings(AGREEMENT_ACTION_EMAIL="oversight@example.com")
+    def test_agreement_email_goes_to_customer_cc_oversight_mailbox(self, client):
+        profile, _, offer = _sent_offer()
+        client.force_login(profile.user)
+
+        response = post_json(client, accept_url(offer.pk), _accept_payload())
+
+        assert response.status_code == 201
+        sent = mail.outbox[0]
+        assert sent.to == [profile.user.email]
+        assert sent.cc == ["oversight@example.com"]
+
+    @override_settings(AGREEMENT_ACTION_EMAIL="")
+    def test_agreement_email_has_no_cc_when_oversight_mailbox_unset(self, client):
+        profile, _, offer = _sent_offer()
+        client.force_login(profile.user)
+
+        response = post_json(client, accept_url(offer.pk), _accept_payload())
+
+        assert response.status_code == 201
+        assert mail.outbox[0].to == [profile.user.email]
+        assert mail.outbox[0].cc == []
 
     def test_declaration_must_be_checked(self, client):
         profile, _, offer = _sent_offer()

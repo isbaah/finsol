@@ -1,6 +1,6 @@
 """Hubtel adapter tests (master prompt Section 22: "Hubtel success, timeout,
 4xx, 5xx, and malformed-response tests using mocked HTTP") — no real network
-call is ever made; `requests.post` itself is mocked."""
+call is ever made; `requests.get` itself is mocked."""
 
 from unittest.mock import Mock, patch
 
@@ -29,7 +29,7 @@ class TestHubtelSend:
         response = Mock(status_code=200)
         response.json.return_value = {"messageId": "abc-123"}
 
-        with patch("integrations.hubtel.hubtel.requests.post", return_value=response) as mocked:
+        with patch("integrations.hubtel.hubtel.requests.get", return_value=response) as mocked:
             result = provider.send(recipient_phone_e164="+233241234567", message_body="Hello")
 
         assert result.success is True
@@ -40,7 +40,7 @@ class TestHubtelSend:
         provider = _provider()
 
         with patch(
-            "integrations.hubtel.hubtel.requests.post", side_effect=requests.Timeout("timed out")
+            "integrations.hubtel.hubtel.requests.get", side_effect=requests.Timeout("timed out")
         ):
             result = provider.send(recipient_phone_e164="+233241234567", message_body="Hello")
 
@@ -51,7 +51,7 @@ class TestHubtelSend:
         provider = _provider()
 
         with patch(
-            "integrations.hubtel.hubtel.requests.post",
+            "integrations.hubtel.hubtel.requests.get",
             side_effect=requests.ConnectionError("connection refused"),
         ):
             result = provider.send(recipient_phone_e164="+233241234567", message_body="Hello")
@@ -62,7 +62,7 @@ class TestHubtelSend:
         provider = _provider()
         response = Mock(status_code=401)
 
-        with patch("integrations.hubtel.hubtel.requests.post", return_value=response):
+        with patch("integrations.hubtel.hubtel.requests.get", return_value=response):
             result = provider.send(recipient_phone_e164="+233241234567", message_body="Hello")
 
         assert result.success is False
@@ -73,7 +73,7 @@ class TestHubtelSend:
         provider = _provider()
         response = Mock(status_code=429)
 
-        with patch("integrations.hubtel.hubtel.requests.post", return_value=response):
+        with patch("integrations.hubtel.hubtel.requests.get", return_value=response):
             result = provider.send(recipient_phone_e164="+233241234567", message_body="Hello")
 
         assert result.success is False
@@ -83,7 +83,7 @@ class TestHubtelSend:
         provider = _provider()
         response = Mock(status_code=503)
 
-        with patch("integrations.hubtel.hubtel.requests.post", return_value=response):
+        with patch("integrations.hubtel.hubtel.requests.get", return_value=response):
             result = provider.send(recipient_phone_e164="+233241234567", message_body="Hello")
 
         assert result.success is False
@@ -94,7 +94,7 @@ class TestHubtelSend:
         response = Mock(status_code=200)
         response.json.side_effect = ValueError("not JSON")
 
-        with patch("integrations.hubtel.hubtel.requests.post", return_value=response):
+        with patch("integrations.hubtel.hubtel.requests.get", return_value=response):
             result = provider.send(recipient_phone_e164="+233241234567", message_body="Hello")
 
         assert result.success is False
@@ -105,11 +105,33 @@ class TestHubtelSend:
         response = Mock(status_code=400)
         response.json.return_value = {"message": "Invalid sender ID"}
 
-        with patch("integrations.hubtel.hubtel.requests.post", return_value=response):
+        with patch("integrations.hubtel.hubtel.requests.get", return_value=response):
             result = provider.send(recipient_phone_e164="+233241234567", message_body="Hello")
 
         assert result.success is False
         assert result.error_summary == "Invalid sender ID"
+
+    def test_2xx_with_nonzero_body_status_is_a_business_rejection(self):
+        provider = _provider()
+        response = Mock(status_code=201)
+        response.json.return_value = {"status": 1004, "statusDescription": "Insufficient balance"}
+
+        with patch("integrations.hubtel.hubtel.requests.get", return_value=response):
+            result = provider.send(recipient_phone_e164="+233241234567", message_body="Hello")
+
+        assert result.success is False
+        assert result.response_code == "1004"
+
+    def test_2xx_with_zero_body_status_succeeds(self):
+        provider = _provider()
+        response = Mock(status_code=201)
+        response.json.return_value = {"status": 0, "messageId": "abc-123"}
+
+        with patch("integrations.hubtel.hubtel.requests.get", return_value=response):
+            result = provider.send(recipient_phone_e164="+233241234567", message_body="Hello")
+
+        assert result.success is True
+        assert result.provider_message_id == "abc-123"
 
     def test_get_status_returns_unknown(self):
         provider = _provider()
@@ -117,6 +139,7 @@ class TestHubtelSend:
         assert result.status == "UNKNOWN"
 
 
+@pytest.mark.django_db
 class TestGetSmsProvider:
     @override_settings(HUBTEL_ENABLED=False, SMS_DRY_RUN=True)
     def test_defaults_to_dry_run(self):
@@ -131,8 +154,18 @@ class TestGetSmsProvider:
         assert isinstance(get_sms_provider(), DryRunSMSProvider)
 
     @override_settings(HUBTEL_ENABLED=True, SMS_DRY_RUN=False)
-    def test_both_flags_enable_real_provider(self):
+    def test_both_env_flags_enable_real_provider_by_default(self):
         assert isinstance(get_sms_provider(), HubtelSMSProvider)
+
+    @override_settings(HUBTEL_ENABLED=True, SMS_DRY_RUN=False)
+    def test_dashboard_toggle_overrides_env_flags_when_paused(self):
+        from apps.messaging.models import SMSSettings
+
+        sms_settings = SMSSettings.get_solo()
+        sms_settings.hubtel_enabled = False
+        sms_settings.save(update_fields=["hubtel_enabled"])
+
+        assert isinstance(get_sms_provider(), DryRunSMSProvider)
 
 
 @pytest.mark.django_db

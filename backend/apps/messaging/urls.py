@@ -5,6 +5,7 @@ from apps.messaging.views import (
     AdminSMSMessageListView,
     AdminSMSMessageRetryView,
     AdminSMSMessageSummaryView,
+    AdminSMSSettingsView,
 )
 
 urlpatterns = [
@@ -24,4 +25,5 @@ urlpatterns = [
         AdminManualReminderView.as_view(),
         name="admin-installment-manual-reminder",
     ),
+    path("admin/sms-settings/", AdminSMSSettingsView.as_view(), name="admin-sms-settings"),
 ]

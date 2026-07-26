@@ -1,3 +1,5 @@
+from datetime import time
+
 from django.conf import settings
 from django.db import models
 
@@ -112,3 +114,33 @@ class SMSMessage(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.message_type} -> {self.recipient_phone_e164} ({self.status})"
+
+
+class SMSSettings(BaseModel):
+    """Admin-dashboard-editable SMS controls (a single row, same singleton
+    pattern as `apps.repayments.models.RepaymentAccount`).
+
+    `hubtel_enabled` here is a day-to-day pause/resume switch layered on
+    top of the `HUBTEL_ENABLED`/`SMS_DRY_RUN` environment variables in
+    `integrations.hubtel.get_sms_provider()` — real sending requires BOTH
+    those env vars AND this flag, so a bug or a compromised admin account
+    can never turn on real (paid) SMS sending without a server-level
+    config change too (master prompt Section 17/20's "real sending must be
+    impossible unless explicit environment configuration enables it").
+    `morning_reminder_time`/`afternoon_reminder_time` replace the
+    `SMS_DUE_MORNING_TIME`/`SMS_DUE_AFTERNOON_TIME` env vars outright —
+    scheduling has no safety implication, so it's fully admin-editable.
+    """
+
+    singleton_key = models.CharField(max_length=10, default="default", unique=True, editable=False)
+    hubtel_enabled = models.BooleanField(default=True)
+    morning_reminder_time = models.TimeField(default=time(8, 0))
+    afternoon_reminder_time = models.TimeField(default=time(16, 0))
+
+    def __str__(self) -> str:
+        return "SMS settings"
+
+    @classmethod
+    def get_solo(cls) -> "SMSSettings":
+        obj, _ = cls.objects.get_or_create(singleton_key="default")
+        return obj

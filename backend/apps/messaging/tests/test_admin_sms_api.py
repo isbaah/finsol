@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from apps.audit.models import AuditEvent
-from apps.messaging.models import SMSMessage
+from apps.messaging.models import SMSMessage, SMSSettings
 from integrations.hubtel.base import SMSProviderResult
 from tests.factories import make_active_loan, make_staff_user, make_user
 
@@ -29,6 +29,10 @@ def retry_url(message_id) -> str:
 
 def manual_reminder_url(installment_id) -> str:
     return f"/api/v1/admin/installments/{installment_id}/manual-reminder/"
+
+
+def sms_settings_url() -> str:
+    return "/api/v1/admin/sms-settings/"
 
 
 def _installment():
@@ -148,3 +152,54 @@ class TestRetry:
         assert response.status_code == 200
         assert response.json()["status"] == SMSMessage.Status.SENT
         assert AuditEvent.objects.filter(action="sms_message.manual_retry").exists()
+
+
+@pytest.mark.django_db
+class TestAdminSmsSettings:
+    def test_unauthenticated_is_rejected(self, client):
+        assert client.get(sms_settings_url()).status_code in (401, 403)
+
+    def test_defaults_are_enabled_with_standard_reminder_times(self, client):
+        client.force_login(make_staff_user("AUDITOR"))
+
+        response = client.get(sms_settings_url())
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["hubtel_enabled"] is True
+        assert body["morning_reminder_time"] == "08:00:00"
+        assert body["afternoon_reminder_time"] == "16:00:00"
+
+    def test_non_super_admin_cannot_change_settings(self, client):
+        client.force_login(make_staff_user("LOAN_OFFICER"))
+
+        response = client.put(
+            sms_settings_url(),
+            data=json.dumps({"hubtel_enabled": False, "morning_reminder_time": "09:00"}),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 403
+        assert SMSSettings.get_solo().hubtel_enabled is True
+
+    def test_super_admin_can_pause_sending_and_it_is_audited(self, client):
+        client.force_login(make_staff_user("SUPER_ADMIN"))
+
+        response = client.put(
+            sms_settings_url(),
+            data=json.dumps(
+                {
+                    "hubtel_enabled": False,
+                    "morning_reminder_time": "09:30",
+                    "afternoon_reminder_time": "17:15",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        settings_row = SMSSettings.get_solo()
+        assert settings_row.hubtel_enabled is False
+        assert str(settings_row.morning_reminder_time) == "09:30:00"
+        assert str(settings_row.afternoon_reminder_time) == "17:15:00"
+        assert AuditEvent.objects.filter(action="sms_settings.update").exists()

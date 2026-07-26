@@ -5,11 +5,14 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { useSmsSettings, useUpdateSmsSettings } from "@/features/messaging/use-messaging";
+import type { SmsSettings, SmsSettingsPayload } from "@/features/messaging/types";
 import {
   useAdminRepaymentAccount,
   useUpdateRepaymentAccount,
@@ -52,7 +55,101 @@ export default function AdminSettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      <SmsSettingsCard />
     </main>
+  );
+}
+
+function SmsSettingsCard() {
+  const { data, isLoading, isError } = useSmsSettings();
+
+  return (
+    <Card className="max-w-2xl">
+      <CardHeader>
+        <CardTitle>SMS reminders (Hubtel)</CardTitle>
+        <CardDescription>
+          Pause or resume repayment-reminder SMS and set the daily send times. Super admin only.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading && <Skeleton className="h-32 w-full" />}
+        {isError && <p className="text-destructive text-sm">Couldn&apos;t load SMS settings.</p>}
+        {!isLoading && !isError && data && (
+          <SmsSettingsForm key={data.updated_at} initial={data} />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SmsSettingsForm({ initial }: { initial: SmsSettings }) {
+  const update = useUpdateSmsSettings();
+  const [values, setValues] = useState<SmsSettingsPayload>({
+    hubtel_enabled: initial.hubtel_enabled,
+    morning_reminder_time: initial.morning_reminder_time.slice(0, 5),
+    afternoon_reminder_time: initial.afternoon_reminder_time.slice(0, 5),
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    try {
+      await update.mutateAsync(values);
+      toast.success("SMS settings saved.");
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        setError("Only the super admin can change SMS settings.");
+        return;
+      }
+      setError("Couldn't save SMS settings. Please try again.");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="hubtel-enabled"
+          checked={values.hubtel_enabled}
+          onCheckedChange={(checked) =>
+            setValues((current) => ({ ...current, hubtel_enabled: checked === true }))
+          }
+        />
+        <Label htmlFor="hubtel-enabled">Send real SMS via Hubtel (unchecked = paused)</Label>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="morning-time">Morning reminder time</Label>
+          <Input
+            id="morning-time"
+            type="time"
+            value={values.morning_reminder_time}
+            onChange={(event) =>
+              setValues((current) => ({ ...current, morning_reminder_time: event.target.value }))
+            }
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="afternoon-time">Afternoon reminder time</Label>
+          <Input
+            id="afternoon-time"
+            type="time"
+            value={values.afternoon_reminder_time}
+            onChange={(event) =>
+              setValues((current) => ({ ...current, afternoon_reminder_time: event.target.value }))
+            }
+          />
+        </div>
+      </div>
+
+      {error && <p className="text-destructive text-sm">{error}</p>}
+      <Button type="submit" disabled={update.isPending} className="self-start">
+        {update.isPending ? "Saving…" : "Save SMS settings"}
+      </Button>
+    </form>
   );
 }
 

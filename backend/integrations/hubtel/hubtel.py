@@ -1,7 +1,19 @@
 """Real Hubtel SMS adapter (master prompt Section 17, Section 30's Hubtel
-docs reference). Sends via Hubtel's SMS "Send Message" endpoint
-(`POST {base}/v1/messages/send`), authenticated with HTTP Basic Auth using
-the Client ID/Secret pair, over JSON.
+docs reference). Sends via Hubtel's Quick SMS endpoint
+(`GET {base}/v1/messages/send`, default base `https://smsc.hubtel.com`),
+which takes `clientid`/`clientsecret`/`from`/`to`/`content` as query-string
+parameters rather than a JSON body or HTTP Basic Auth header. Confirmed
+live against the account this was configured for: POST returns HTTP 411
+(the endpoint requires GET, not POST — it rejects a bodyless POST for
+lacking a Content-Length), and a successful GET returns HTTP 201 with a
+JSON body `{"status": 0, "messageId": ..., ...}` — a non-zero `status`
+means a business-level rejection even though the HTTP status is 2xx.
+
+**Security note**: the Quick SMS API puts the client secret in the URL
+query string rather than a header. `requests` does not log request URLs on
+its own, and nothing in this module logs the constructed URL — keep it that
+way (log status codes/recipients, never `response.url` or the request
+params) so the secret never ends up in application logs.
 
 **Known limitation (see docs/BUILD_PROGRESS.md's Stage 11 section)**:
 Hubtel's public SMS product delivers final delivery confirmation through a
@@ -30,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 class HubtelSMSProvider:
     def __init__(self) -> None:
-        self._base_url = (settings.HUBTEL_BASE_URL or "https://api.hubtel.com").rstrip("/")
+        self._base_url = (settings.HUBTEL_BASE_URL or "https://smsc.hubtel.com").rstrip("/")
         self._client_id = settings.HUBTEL_CLIENT_ID
         self._client_secret = settings.HUBTEL_CLIENT_SECRET
         self._sender_id = settings.HUBTEL_SENDER_ID
@@ -41,17 +53,17 @@ class HubtelSMSProvider:
 
     def send(self, *, recipient_phone_e164: str, message_body: str) -> SMSProviderResult:
         url = f"{self._base_url}/v1/messages/send"
-        payload = {
-            "From": self._sender_id,
-            "To": recipient_phone_e164,
-            "Content": message_body,
-            "RegisteredDelivery": True,
+        params = {
+            "clientid": self._client_id,
+            "clientsecret": self._client_secret,
+            "from": self._sender_id,
+            "to": recipient_phone_e164.lstrip("+"),
+            "content": message_body,
         }
         try:
-            response = requests.post(
+            response = requests.get(
                 url,
-                json=payload,
-                auth=(self._client_id, self._client_secret),
+                params=params,
                 timeout=self._timeout,
             )
         except requests.Timeout as exc:
@@ -114,6 +126,24 @@ class HubtelSMSProvider:
                 response_code=str(status_code),
                 error_summary=str(
                     data.get("message") or data.get("Message") or "Hubtel rejected the request."
+                ),
+                raw_response=data,
+            )
+
+        # Quick SMS returns HTTP 200 even for business-level rejections (bad
+        # sender ID, insufficient balance, etc.) — the real outcome is in the
+        # body's "status" field (0/"0" = success; anything else = failure).
+        body_status = data.get("status", data.get("Status"))
+        if body_status is not None and str(body_status) != "0":
+            logger.warning("sms.hubtel.business_rejection status=%s", body_status)
+            return SMSProviderResult(
+                success=False,
+                response_code=str(body_status),
+                error_summary=str(
+                    data.get("message")
+                    or data.get("Message")
+                    or data.get("statusDescription")
+                    or f"Hubtel rejected the request (status {body_status})."
                 ),
                 raw_response=data,
             )

@@ -211,27 +211,31 @@ def accept_offer_and_create_agreement(
 
 
 def send_agreement_email(agreement: Agreement) -> str:
-    """Emails the generated PDF to AGREEMENT_ACTION_EMAIL and returns the
-    resulting `Agreement.EmailDeliveryStatus` value. Never called inside the
-    acceptance transaction — a failure here only ever updates the two
-    mutable-after-create bookkeeping fields on `agreement`, never rolls
-    back the acceptance itself (Section 18)."""
+    """Emails the generated PDF to the customer who signed it, CC'ing
+    AGREEMENT_ACTION_EMAIL (an internal oversight mailbox) when configured,
+    and returns the resulting `Agreement.EmailDeliveryStatus` value. Never
+    called inside the acceptance transaction — a failure here only ever
+    updates the two mutable-after-create bookkeeping fields on `agreement`,
+    never rolls back the acceptance itself (Section 18)."""
     storage = get_storage()
-    recipient = settings.AGREEMENT_ACTION_EMAIL
+    recipient = agreement.customer.email
+    cc_address = settings.AGREEMENT_ACTION_EMAIL
     try:
         if not recipient:
-            raise RuntimeError("AGREEMENT_ACTION_EMAIL is not configured.")
+            raise RuntimeError("Customer has no email on file.")
         pdf_bytes = storage.read(agreement.agreement_pdf_path)
         message = EmailMessage(
             subject=f"Signed loan agreement — {agreement.offer.loan_request.request_number}",
             body=(
-                f"The attached agreement was signed by {agreement.typed_legal_name} "
-                f"({agreement.customer.email}) at {agreement.accepted_at.isoformat()}.\n\n"
+                f"Hello {agreement.typed_legal_name},\n\n"
+                "Attached is a copy of the loan agreement you signed on "
+                f"{agreement.accepted_at.isoformat()}.\n\n"
                 f"Document reference: {agreement.offer.loan_request.request_number}-AGR-v"
                 f"{agreement.offer.version_number}\n"
                 f"PDF SHA-256: {agreement.agreement_pdf_sha256}"
             ),
             to=[recipient],
+            cc=[cc_address] if cc_address else [],
         )
         message.attach(
             f"{agreement.offer.loan_request.request_number}-agreement.pdf",

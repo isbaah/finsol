@@ -53,3 +53,14 @@ export interface SMSMessageListParams {
   message_type?: SMSMessageType;
   loan?: string;
 }
+
+/** Mirrors SMSSettingsSerializer — the /admin/settings Hubtel controls.
+ * Times are "HH:MM:SS" strings (DRF's default TimeField rendering). */
+export interface SmsSettings {
+  hubtel_enabled: boolean;
+  morning_reminder_time: string;
+  afternoon_reminder_time: string;
+  updated_at: string;
+}
+
+export type SmsSettingsPayload = Omit<SmsSettings, "updated_at">;

@@ -116,6 +116,13 @@ SMS is disabled by default (`HUBTEL_ENABLED=false`, `SMS_DRY_RUN=true`). Real se
 explicit configuration of `HUBTEL_BASE_URL`, `HUBTEL_CLIENT_ID`, `HUBTEL_CLIENT_SECRET`, and
 `HUBTEL_SENDER_ID` — see `docs/SMS_TEMPLATES.md` (added in Stage 11) once available.
 
+The adapter targets Hubtel's Quick SMS API (`GET https://smsc.hubtel.com/v1/messages/send`,
+default base URL), not the JSON/Basic-Auth Messages API — `clientid`/`clientsecret`/`from`/`to`/
+`content` are sent as query-string parameters. A non-zero `status` field in the JSON body means a
+business-level rejection (bad sender ID, insufficient balance, etc.) even on a 2xx HTTP response.
+After changing any `HUBTEL_*` value in `.env`, recreate the backend container
+(`docker compose up -d --force-recreate backend`) — a plain `restart` does not reload `.env`.
+
 ## Email setup
 
 Local development uses Django's console email backend by default (emails print to the backend

@@ -112,7 +112,10 @@ class LoanRequestSerializer(serializers.ModelSerializer):
 class AdminLoanRequestListSerializer(serializers.ModelSerializer):
     """Staff queue serializer — matches the "New loan requests table" column
     spec (master prompt Section 16): request number, customer, amount,
-    submission date, purpose, status, assigned officer."""
+    submission date, purpose, status, assigned officer. Also includes the
+    customer's preferred term (count + unit), a post-Section-16
+    user-requested addition — it was already on the detail serializer but
+    missing from this list view."""
 
     customer_email = serializers.EmailField(source="customer.email", read_only=True)
     customer_name = serializers.SerializerMethodField()
@@ -127,6 +130,8 @@ class AdminLoanRequestListSerializer(serializers.ModelSerializer):
             "customer_name",
             "requested_amount",
             "purpose",
+            "requested_term_count",
+            "requested_term_unit",
             "status",
             "submitted_at",
             "assigned_to_name",

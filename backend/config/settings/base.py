@@ -336,7 +336,7 @@ LENDER_NAME = env("LENDER_NAME", "[Lender Legal Name Placeholder]")
 # ---------------------------------------------------------------------------
 
 HUBTEL_ENABLED = env_bool("HUBTEL_ENABLED", False)
-HUBTEL_BASE_URL = env("HUBTEL_BASE_URL", "https://api.hubtel.com")
+HUBTEL_BASE_URL = env("HUBTEL_BASE_URL", "https://smsc.hubtel.com")
 HUBTEL_CLIENT_ID = env("HUBTEL_CLIENT_ID", "")
 HUBTEL_CLIENT_SECRET = env("HUBTEL_CLIENT_SECRET", "")
 HUBTEL_SENDER_ID = env("HUBTEL_SENDER_ID", "")
@@ -346,8 +346,8 @@ HUBTEL_READ_TIMEOUT_SECONDS = float(env("HUBTEL_READ_TIMEOUT_SECONDS", "10") or 
 HUBTEL_MAX_REQUESTS_PER_MINUTE = int(env("HUBTEL_MAX_REQUESTS_PER_MINUTE", "60") or "60")
 SMS_DRY_RUN = env_bool("SMS_DRY_RUN", True)
 SMS_MAX_ATTEMPTS = int(env("SMS_MAX_ATTEMPTS", "3") or "3")
-SMS_DUE_MORNING_TIME = env("SMS_DUE_MORNING_TIME", "08:00")
-SMS_DUE_AFTERNOON_TIME = env("SMS_DUE_AFTERNOON_TIME", "16:00")
+# Reminder times moved to the DB-backed apps.messaging.models.SMSSettings
+# singleton, editable from /admin/settings — no env var equivalent anymore.
 
 # ---------------------------------------------------------------------------
 # Logging

@@ -65,6 +65,7 @@ export default function AdminLoanRequestsPage() {
                 <th className="px-5 py-3 font-medium">Request number</th>
                 <th className="px-5 py-3 font-medium">Customer</th>
                 <th className="px-5 py-3 font-medium">Requested amount</th>
+                <th className="px-5 py-3 font-medium">Preferred term</th>
                 <th className="px-5 py-3 font-medium">Submitted</th>
                 <th className="px-5 py-3 font-medium">Purpose</th>
                 <th className="px-5 py-3 font-medium">Status</th>
@@ -78,6 +79,13 @@ export default function AdminLoanRequestsPage() {
                   <td className="px-5 py-3">{request.request_number}</td>
                   <td className="px-5 py-3">{request.customer_name || request.customer_email}</td>
                   <td className="px-5 py-3">{formatGHS(request.requested_amount)}</td>
+                  <td className="px-5 py-3">
+                    {request.requested_term_count
+                      ? `${request.requested_term_count} ${request.requested_term_unit.toLowerCase()}${
+                          request.requested_term_count > 1 ? "s" : ""
+                        }`
+                      : "—"}
+                  </td>
                   <td className="px-5 py-3">
                     {request.submitted_at ? formatDateTime(request.submitted_at) : "—"}
                   </td>

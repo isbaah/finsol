@@ -263,6 +263,20 @@ class TestAdminQueue:
         assert len(results) == 1
         assert results[0]["request_number"] == loan_request.request_number
 
+    def test_list_includes_the_preferred_term(self, client):
+        loan_request = make_loan_request(
+            make_user(), requested_term_count=9, requested_term_unit="MONTH"
+        )
+        client.force_login(make_staff_user("LOAN_OFFICER"))
+
+        response = client.get(ADMIN_LIST_URL)
+
+        row = next(
+            r for r in response.json()["results"] if r["request_number"] == loan_request.request_number
+        )
+        assert row["requested_term_count"] == 9
+        assert row["requested_term_unit"] == "MONTH"
+
     def test_detail_includes_offer_history(self, client):
         from tests.factories import make_offer
 

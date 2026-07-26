@@ -7,8 +7,12 @@ import apps.messaging.services as messaging_services
 from apps.audit.services import record_event
 from apps.loans.models import RepaymentInstallment
 from apps.messaging.filters import SMSMessageFilter
-from apps.messaging.models import SMSMessage
-from apps.messaging.serializers import ManualReminderSerializer, SMSMessageSerializer
+from apps.messaging.models import SMSMessage, SMSSettings
+from apps.messaging.serializers import (
+    ManualReminderSerializer,
+    SMSMessageSerializer,
+    SMSSettingsSerializer,
+)
 from common.permissions import (
     FINANCE_OFFICER,
     LOAN_OFFICER,
@@ -102,3 +106,42 @@ class AdminManualReminderView(APIView):
             reason=reason,
         )
         return Response(SMSMessageSerializer(message).data, status=201)
+
+
+class AdminSMSSettingsView(APIView):
+    """GET/PUT /api/v1/admin/sms-settings/ — the settings form behind
+    /admin/settings: pause/resume Hubtel sending and edit the daily
+    reminder times. Any staff role may read; only the SUPER_ADMIN may
+    change it (same access pattern as AdminRepaymentAccountView), and every
+    change is audited since it controls whether real, paid SMS goes out."""
+
+    def get_permissions(self):
+        if self.request.method == "PUT":
+            return [permissions.IsAuthenticated(), has_any_role(SUPER_ADMIN)()]
+        return [permissions.IsAuthenticated(), has_any_role(*STAFF_ROLES)()]
+
+    def get(self, request):
+        return Response(SMSSettingsSerializer(SMSSettings.get_solo()).data)
+
+    def put(self, request):
+        sms_settings = SMSSettings.get_solo()
+        before = {
+            "hubtel_enabled": sms_settings.hubtel_enabled,
+            "morning_reminder_time": str(sms_settings.morning_reminder_time),
+            "afternoon_reminder_time": str(sms_settings.afternoon_reminder_time),
+        }
+        serializer = SMSSettingsSerializer(instance=sms_settings, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        record_event(
+            actor=request.user,
+            action="sms_settings.update",
+            entity=sms_settings,
+            before=before,
+            after={
+                "hubtel_enabled": sms_settings.hubtel_enabled,
+                "morning_reminder_time": str(sms_settings.morning_reminder_time),
+                "afternoon_reminder_time": str(sms_settings.afternoon_reminder_time),
+            },
+        )
+        return Response(serializer.data)
